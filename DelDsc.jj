@@ -1,0 +1,496 @@
+/* JavaCC input file for a simple imperative language. */
+
+PARSER_BEGIN(MPL)
+
+import java.io.*;
+import java.util.*;
+
+public class MPL{
+    private static Scanner input = new Scanner(System.in);
+	private static HashMap<String, Integer> memory = new HashMap<String, Integer>();
+
+	public static void main(String[] args) throws ParseException, TokenMgrError {
+		if (args.length > 0) {
+			try {
+				System.out.println("START");
+				MPL parser = new MPL(new FileInputStream(args[0]));
+				Node n = parser.Program();
+				execute(n);
+//				printTree(n);
+			} catch (FileNotFoundException ex) {
+				System.out.println("ERROR: file " + args[0] + "not found.");
+			}
+		} else {
+			System.out.println("Must specify source code file name.");
+		}
+	}
+
+
+	// Execute statements: INPUT, PRINT, PROGRAM, BLOCK.
+	public static void execute(Node n){
+		if(n != null){
+			if(n.label.equals("PROGRAM")){
+				for(int i=0; i < n.children.size(); i++){
+					execute(n.children.get(i));
+				}
+			} else if(n.label.equals("STATEMENT")){ 
+				// Statement only has one child in this language.
+				execute(n.children.get(0));
+			
+			// STATEMENTS:
+			} else if(n.label.equals("INPUT")){
+				Node child = n.children.get(0);
+				String varName = ((IdNode) child).name;
+				System.out.print(".__._ : ");
+				int value = input.nextInt(); 
+				memory.put(varName, value);
+			} else if(n.label.equals("PRINT")){
+				Node child = n.children.get(0);
+				int value = eval(child);
+				if(child.label.equals("STRING")){
+					System.out.println("");
+				} else{
+					System.out.println(value);
+				}
+			} else if(n.label.equals("ASSIGN")){
+				Node child = n.children.get(0);
+				int val = eval(n.children.get(1));
+				String varName = ((IdNode) child).name;
+				memory.put(varName, val);
+		
+			// LOOP:
+			} else if(n.label.equals("WHILE")){
+				Node cond = n.children.get(0);
+				Node body = n.children.get(1);
+				while(eval(cond)!= 0){
+					execute(body);
+				}			
+
+			// CONDITIONS:
+			} else if(n.label.equals("COND")){
+				Node i = n.children.get(0);
+				Node e = n.children.get(1);
+					
+				Node iCond = i.children.get(0);
+				Node iBod = i.children.get(1);
+				if(eval(iCond) == 1){
+					execute(iBod);
+				} else{
+					execute(e.children.get(0));
+				} 
+			// BLOCK:
+			} else if(n.label.equals("BLOCK")){
+				for(int i = 0; i < n.children.size(); i++){
+					execute(n.children.get(i));
+				}
+			}
+		}
+	}
+
+	// Evaluate expressions: EXP, TERM, ID, REL, STRING.
+	public static int eval(Node n){
+		if(n.label.equals("EXP") || n.label.equals("TERM")){
+			int result = eval(n.children.get(0));
+			for(int i=0; i < n.children.size(); i++){
+				if(i != 0){
+					if(n.children.get(i-1).label.equals("OP(+)")){
+						result = result + eval(n.children.get(i));
+					} else if(n.children.get(i-1).label.equals("OP(-)")){
+						result = result - eval(n.children.get(i));
+					} else if(n.children.get(i-1).label.equals("OP(*)")){
+						result = result * eval(n.children.get(i));
+					} else if(n.children.get(i-1).label.equals("OP(/)")){
+						result = result / eval(n.children.get(i));
+					} else{
+						eval(n.children.get(i));
+					}
+				}
+			}	
+			return result;
+		} else if(n.label.equals("OP(+)") || n.label.equals("OP(-)") || n.label.equals("OP(*)") || n.label.equals("OP(/)")){
+			return 0;
+		} else if(n.label.equals("ID")){
+			String varName = ((IdNode) n).name;
+			return memory.get(varName);
+		} else if(n.label.equals("INT")){
+			int value = ((IntNode) n).value;
+			return value;
+		} else if(n.label.equals("REL")){
+			int result = 0;
+			int left = eval(n.children.get(0));
+			Node op = n.children.get(1);
+			int right = eval(n.children.get(2));
+			if(op.label.equals("OP(>)")){
+				if(left > right){
+					result = 1;
+				} else{
+					result = 0;
+				}
+			} else if(op.label.equals("OP(<)")){
+				 if(left < right){
+                                       result = 1;
+                                } else{
+                                        result = 0;
+                                }
+			} else if(op.label.equals("OP(>=)")){
+				 if(left >= right){
+                                        result = 1;
+                                } else{
+                                        result = 0;
+                                }
+			} else if(op.label.equals("OP(<=)")){
+				 if(left <= right){
+                                        result = 1;
+                                } else{
+                                        result = 0;
+                                }
+			} else if(op.label.equals("OP(==)")){
+				 if(left == right){
+                                        result = 1;
+                                } else{
+                                        result = 0;
+                                }
+			} else if(op.label.equals("OP(!=)")){
+				 if(left != right){
+                                        result = 1;
+                                } else{
+                                        result = 0;
+                                }
+			} else if(op.label.equals("OP(&)")){
+				 if(eval(n.children.get(0)) == 1 && eval(n.children.get(2)) == 1){
+                                        result = 1;
+                                } else{
+                                        result = 0;
+                                }
+			} else if(op.label.equals("OP(||)")){
+				 if(eval(n.children.get(0)) == 1 || eval(n.children.get(2)) == 1){
+                                        result = 1;
+                                } else{
+                                        result = 0;
+                                }
+			}
+			return result;
+		} else if(n.label.equals("STRING")){
+			System.out.print(n.children.get(0).label);
+			
+			return 0;
+		} else{
+			throw new IllegalArgumentException(n.label);
+		}
+	}
+
+	public static void printTree(Node n){
+		if(n != null){
+			System.out.println(n.label);
+			if (n.children != null){
+				for(int i = 0; i < n.children.size(); i ++){
+					printTree(n.children.get(i));
+				}
+			}
+		}
+	}
+} 
+	
+PARSER_END(MPL)
+
+
+SKIP : { " " }
+TOKEN : { <NOT : "_"> }
+TOKEN : { <NW : "\n"> }
+TOKEN : { <TB : "\t"> }
+TOKEN : { <WHILE : "__._."> }
+TOKEN : { <PRINT : "__.__"> }
+TOKEN : { <INPUT : ".__._"> }
+TOKEN : { <AND : ".__"> }
+TOKEN : { <OR : "._"> }
+TOKEN : { <COM : "_.__.__"> }
+TOKEN : { <IF : "._."> }
+TOKEN : { <ELSE : ".__."> } 
+TOKEN : { <LS : "___."> }
+TOKEN : { <GR : ".___"> }
+TOKEN : { <EQ : "||"> }
+TOKEN : { <EQA: "|||"> }
+TOKEN : { <PAR : "|"> }
+TOKEN : { <ADD : "__"> }
+TOKEN : { <SUB : ".."> }
+TOKEN : { <DIV : "..."> }
+TOKEN : { <MUL : "___"> }
+TOKEN : { <MOD : "__.."> } 
+TOKEN : { <INT : "0" | ["1"-"9"](["0"-"9"])*> }
+TOKEN : { <ID : (["a"-"z", "A"-"Z"])+ (["_", "0"-"9"])*> }
+TOKEN : { <END : "."> }
+TOKEN : { <QT : ":"> }
+TOKEN : { <LSE : "___.||"> }
+TOKEN : { <GRE : ".___||"> }
+TOKEN : { <SEM : ";"> }
+TOKEN : { <NE : "_||"> }
+TOKEN : { <STR : (["A"-"Z", "a"-"z", "0"-"9"])+ (["A"-"Z", "a"-"z", ".", "!", "0"-"9"])*> }
+
+Node Program():
+{
+	Node n;
+	Node child;
+}
+{
+			{ n = new Node("PROGRAM"); }
+	(
+		child = Stmt()	{ n.addChild(child); }
+	)+
+	<EOF>
+			{ return n; }
+}
+
+Node Stmt():
+{
+	Node n;
+	Node child;
+}
+{
+			{ n = new Node("STATEMENT"); }
+	(
+		child = Input()	{ n.addChild(child); }
+		|
+		child = Output()	{ n.addChild(child); }
+		|
+		child = Assign()	{ n.addChild(child); }
+		|
+		child = Loop()	{ n.addChild(child); }
+		|
+		child = Cond()	{ n.addChild(child); }
+	)
+			{ return n; }
+}
+
+Node Input():
+{
+	Node n;
+	Token t;
+}
+{
+	<INPUT>		{ n = new Node("INPUT"); }
+	<PAR> 
+	t = <ID>	{ n.addChild(new IdNode(t.image)); }
+	<PAR>
+	<NW>
+			{ return n; }
+}
+
+Node Output():
+{
+	Node n;
+	Node child;
+}
+{
+	<PRINT>		{ n = new Node("PRINT"); }
+	<PAR> 
+	(
+		child = String()        { n.addChild(child); }
+		|
+		child = Exp()	{ n.addChild(child); }
+	) 
+	<PAR> 
+	<NW>
+			{ return n; }
+}
+
+Node String():
+{
+	Node n;
+	Token t;
+}
+{
+			{ n = new Node("STRING"); }
+	<QT>		 
+	t = <STR>	{ n.addChild(new Node(t.image)); }
+	<QT>
+			{ return n; }
+}
+
+Node Assign():
+{
+	Node n;
+	Node child;
+	Token t;
+}
+{
+			{ n = new Node("ASSIGN"); }	
+	t = <ID>	{ n.addChild(new IdNode(t.image)); } 
+	<EQ> 
+	child = Exp()	{ n.addChild(child); } 
+	<NW>
+			{ return n; }
+}
+
+Node Loop():
+{
+	Node n;
+	Node child;
+}
+{
+	<WHILE>		{ n = new Node("WHILE"); } 
+	<PAR> 
+	child = Rel()	{ n.addChild(child); } 
+	<PAR> 
+	child =	Block() { n.addChild(child); }
+	<NW> 
+			{ return n; }
+}
+
+Node Cond():
+{
+	Node n;
+	Node j;
+	Node child;
+}
+{
+			{ n = new Node("COND"); }
+	<IF>		
+	child = If()	{ n.addChild(child); }
+	(
+		<ELSE>	
+		child = Else()	{ n.addChild(child); } 
+	)?
+	<NW>
+			{ return n; } 
+}
+
+Node If():
+{
+	Node n;
+	Node child;
+}
+{
+		{ n = new Node("IF"); }
+	<PAR>
+	child = Rel()	{ n.addChild(child); }
+	<PAR>
+	child = Block()	{ n.addChild(child); }
+	<NW>
+		{ return n; }
+}
+
+Node Else():
+{
+	Node n;
+	Node child;
+}
+{
+		{ n = new Node("ELSE"); }
+	child = Block() { n.addChild(child); }
+	<NW>
+		{ return n; }
+}
+
+Node Block():
+{
+	Node n;
+	Node child;
+}
+{
+		{ n = new Node("BLOCK"); }
+	<PAR>
+	<NW>
+	( <TB> )*
+	child = Stmt()	{ n.addChild(child); } 
+	( 
+		( <TB> )*
+		child = Stmt() { n.addChild(child); }
+	)*
+	<PAR>
+		{return n; }
+}
+
+Node Rel():
+{
+	Node n;
+	Node child;
+}
+{
+			{ n = new Node("REL"); }
+	child = Exp()	{ n.addChild(child); }
+	child =  Op()	{ n.addChild(child); }
+	child =  Exp()	{ n.addChild(child); }
+			{ return n; }
+}
+
+Node Op():
+{
+	Node n;
+}
+{
+	(
+		<GR>		{ n = new Node("OP(>)"); }
+		|
+		<LS>		{ n = new Node("OP(<)"); }
+		|
+		<GRE>		{ n = new Node("OP(>=)"); }
+		|
+		<LSE>		{ n = new Node("OP(<=)"); }
+		|
+		<EQA>		{ n = new Node("OP(==)"); }
+		|
+		<NE>		{ n = new Node("OP(!=)"); }
+		|
+		<AND>		{ n = new Node("OP(&)"); }
+		|
+		<OR>		{ n = new Node("OP(||)"); }
+	)	
+			{ return n; }
+}
+
+Node Exp():
+{
+	Node n;	
+	Node child;
+}
+{
+			{ n = new Node("EXP"); }
+	child = Term()	{ n.addChild(child); }
+	(
+		(
+			<ADD>	{ child = new Node("OP(+)"); }
+				{ n.addChild(child); }
+		|
+			<SUB>	{ child = new Node("OP(-)"); }
+				{ n.addChild(child); }
+		)
+		child = Term() { n.addChild(child); } 
+	)*
+		{ return n; }
+}
+
+Node Term():
+{
+	Node n;
+	Node child;
+}
+{
+			{ n = new Node("TERM"); }
+	child = Factor()	{ n.addChild(child); }
+	(
+		(
+			<MUL>	{ child = new Node("OP(*)"); }
+				{ n.addChild(child); }	
+			|
+			<DIV>	{ child = new Node("OP(/)"); }
+				{ n.addChild(child); }
+		)
+		child = Factor()	{ n.addChild(child); }
+	)*
+			{ return n; }
+}
+
+Node Factor():
+{
+	Node n;
+	Token t;
+}
+{
+	t = <INT>	{ return new IntNode(Integer.parseInt(t.image)); }
+	|
+	t = <ID>	{ return new IdNode(t.image); }
+	|
+	<PAR> 
+	n = Exp()	{ return n; }
+	<PAR> 
+} 

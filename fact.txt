@@ -1,0 +1,10 @@
+__.__ | :ENTER.A.NUMBER: |
+.__._ | a |
+fact || 1
+i || 1
+__._. | i ___.|| a | |
+	fact || fact ___ i
+	i || i __ 1
+|
+__.__ | :THE.FACTORIAL.OF.THE.NUMBER.YOU.ENTERRED.IS: |
+__.__ | fact |
